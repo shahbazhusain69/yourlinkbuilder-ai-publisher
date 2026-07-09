@@ -1,0 +1,11 @@
+{
+     "title": "Test Post - Please Ignore",
+     "content": "<p>This is a test to confirm the automation pipeline works.</p>",
+     "excerpt": "A test post.",
+     "categories": ["Blog"],
+     "tags": ["test"],
+     "seo_title": "Test Post",
+     "meta_description": "A test post to confirm automation works.",
+     "focus_keyword": "test",
+     "status": "draft"
+   }
