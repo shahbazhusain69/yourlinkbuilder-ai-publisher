@@ -1,0 +1,67 @@
+name: Publish to WordPress
+
+on:
+  push:
+    paths:
+      - 'posts/queue/*.json'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Publish each queued post to WordPress
+        env:
+          WP_API_KEY: ${{ secrets.YLB_WP_API_KEY }}
+          WP_ENDPOINT: https://yourlinkbuilder.com/wp-json/ylb-ai/v1/create-post
+        run: |
+          set -e
+          shopt -s nullglob
+          files=(posts/queue/*.json)
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No queued posts found. Nothing to do."
+            exit 0
+          fi
+
+          mkdir -p posts/published
+
+          for f in "${files[@]}"; do
+            echo "----------------------------------------"
+            echo "Publishing: $f"
+
+            http_response=$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "$WP_ENDPOINT" \
+              -H "Content-Type: application/json" \
+              -H "X-YLB-API-Key: $WP_API_KEY" \
+              --data @"$f")
+
+            http_body=$(echo "$http_response" | sed -e 's/HTTPSTATUS\:.*//g')
+            http_status=$(echo "$http_response" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+            echo "Response status: $http_status"
+            echo "Response body: $http_body"
+
+            if [ "$http_status" -ge 200 ] && [ "$http_status" -lt 300 ]; then
+              echo "Success — moving $f to posts/published/"
+              git mv "$f" "posts/published/$(basename "$f")"
+            elif [ "$http_status" -eq 409 ]; then
+              echo "::warning::Duplicate detected for $f — leaving in queue for manual review, not retrying automatically."
+            else
+              echo "::error::Failed to publish $f (HTTP $http_status)"
+              exit 1
+            fi
+          done
+
+      - name: Commit moved files
+        run: |
+          git config user.name "ylb-ai-publisher-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "Move published post JSON to posts/published [skip ci]"
+          git push
