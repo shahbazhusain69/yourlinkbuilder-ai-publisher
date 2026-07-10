@@ -1,1 +1,2 @@
-# yourlinkbuilder-ai-publisher
+# YourLinkBuilder AI Publisher
+Initial plugin skeleton.
